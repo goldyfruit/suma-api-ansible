@@ -1,0 +1,269 @@
+---
+- name: SUSE Manager API demonstration
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    suma_host: https://suma-1.home.lan
+    suma_endpoint: "{{ suma_host }}/rhn/manager/api"
+    suma_verify: false
+    suma_login: suma
+    suma_password: suma2024
+    suma_content_lifecycle_projet_name: susecon24-2024-h1-sles15
+    suma_content_lifecycle_projet_description: |
+      SUSE Linux Enterprise Server 15 SP5 patches for the first half of 2024
+    suma_content_lifecycle_projet_sources:
+      - sle-product-sles15-sp5-pool-x86_64
+      - sle-product-sles15-sp5-updates-x86_64
+    suma_content_lifecycle_filter_name: first-half-2024
+    suma_content_lifecycle_build_description: |
+      Build triggered by ServiceNow Change Request 549812
+    suma_content_lifecycle_projet_envionments:
+      - {"env": "staging", "description": "First lot of servers to get patched. Non-Prod", "predecessor": ""}
+      - {"env": "production", "description": "Second lot of servers to get patched. Prod", "predecessor": "staging"}
+    suma_content_lifecycle_promote_production: false
+
+  handlers:
+    - name: Retrieve SUSE Manager content lifecycle filters - Handler
+      ansible.builtin.uri:
+        url: "{{ suma_endpoint }}/contentmanagement/listFilters"
+        validate_certs: "{{ suma_verify }}"
+        method: GET
+        headers:
+          Accept: application/json
+          Cookie: "{{ suma_cookie }}"
+        status_code: 200
+      register: _suma_content_lifecycle_filters
+
+  pre_tasks:
+    - name: Retrieve SUSE Manager credentials
+      ansible.builtin.uri:
+        url: "{{ suma_endpoint }}/auth/login"
+        validate_certs: "{{ suma_verify }}"
+        method: POST
+        headers:
+          Content-Type: application/json
+        body: |
+          {
+            "login": "{{ suma_login }}",
+            "password": "{{ suma_password }}"
+          }
+        body_format: json
+        status_code: 200
+      register: _suma_credentials
+      tags:
+        - always
+
+    - name: Set suma_cookie fact
+      vars:
+        _suma_jsessionid: "{{ _suma_credentials.cookies['JSESSIONID'] }}"
+        _suma_pxt: "{{ _suma_credentials.cookies['pxt-session-cookie'] }}"
+      ansible.builtin.set_fact:
+        suma_cookie: "JSESSIONID={{ _suma_jsessionid }}; pxt-session-cookie={{ _suma_pxt }}"
+      tags:
+        - always
+
+  tasks:
+    - name: Retrieve SUSE Manager content lifecycle projects
+      ansible.builtin.uri:
+        url: "{{ suma_endpoint }}/contentmanagement/listProjects"
+        validate_certs: "{{ suma_verify }}"
+        method: GET
+        headers:
+          Accept: application/json
+          Cookie: "{{ suma_cookie }}"
+        status_code: 200
+      register: _suma_content_lifecycle_projects
+
+    - name: Create SUSE Manager content lifecycle project
+      ansible.builtin.uri:
+        url: "{{ suma_endpoint }}/contentmanagement/createProject"
+        validate_certs: "{{ suma_verify }}"
+        method: POST
+        headers:
+          Content-Type: application/json
+          Cookie: "{{ suma_cookie }}"
+        body: |
+          {
+            "projectLabel": "{{ suma_content_lifecycle_projet_name }}",
+            "name": "{{ suma_content_lifecycle_projet_name }}",
+            "description": "{{ suma_content_lifecycle_projet_description }}"
+          }
+        body_format: json
+        status_code: 200
+      when: _suma_content_lifecycle_projects.json.result | selectattr("label", "equalto", suma_content_lifecycle_projet_name) | list | count == 0
+
+    - name: Retrieve sources from SUSE Manager content lifecycle project
+      ansible.builtin.uri:
+        url: "{{ suma_endpoint }}/contentmanagement/listProjectSources?projectLabel={{ suma_content_lifecycle_projet_name }}"
+        validate_certs: "{{ suma_verify }}"
+        method: GET
+        headers:
+          Accept: application/json
+          Cookie: "{{ suma_cookie }}"
+        status_code: 200
+      register: _suma_content_lifecycle_project_sources
+
+    - name: Attach sources to SUSE Manager content lifecycle project
+      ansible.builtin.uri:
+        url: "{{ suma_endpoint }}/contentmanagement/attachSource"
+        validate_certs: "{{ suma_verify }}"
+        method: POST
+        headers:
+          Content-Type: application/json
+          Cookie: "{{ suma_cookie }}"
+        body: |
+          {
+            "projectLabel": "{{ suma_content_lifecycle_projet_name }}",
+            "sourceType": "software",
+            "sourceLabel": "{{ item }}"
+          }
+        body_format: json
+        status_code: 200
+      loop: "{{ suma_content_lifecycle_projet_sources }}"
+      when: _suma_content_lifecycle_project_sources.json.result | selectattr("channelLabel", "equalto", item) | list | count == 0
+
+    - name: Retrieve SUSE Manager content lifecycle filters
+      ansible.builtin.uri:
+        url: "{{ suma_endpoint }}/contentmanagement/listFilters"
+        validate_certs: "{{ suma_verify }}"
+        method: GET
+        headers:
+          Accept: application/json
+          Cookie: "{{ suma_cookie }}"
+        status_code: 200
+      register: _suma_content_lifecycle_filters
+
+    - name: Create SUSE Manager content lifecycle filter
+      ansible.builtin.uri:
+        url: "{{ suma_endpoint }}/contentmanagement/createFilter"
+        validate_certs: "{{ suma_verify }}"
+        method: POST
+        headers:
+          Content-Type: application/json
+          Cookie: "{{ suma_cookie }}"
+        body: |
+          {
+            "name": "{{ suma_content_lifecycle_filter_name }}",
+            "rule": "deny",
+            "entityType": "erratum",
+            "criteria": {
+              "field": "issue_date",
+              "matcher": "greatereq",
+              "value": "2024-06-01T04:00:00.000Z"
+            }
+          }
+        body_format: json
+        status_code: 200
+      register: _suma_content_lifecycle_filter_create
+      changed_when: _suma_content_lifecycle_filter_create.status == 200
+      notify: Retrieve SUSE Manager content lifecycle filters - Handler
+      when: _suma_content_lifecycle_filters.json.result | selectattr("name", "equalto", suma_content_lifecycle_filter_name) | list | count == 0
+
+    - name: Force all notified handlers to run at this point
+      ansible.builtin.meta: flush_handlers
+
+    - name: Set filter ID fact for SUSE Manager content lifecycle {{ suma_content_lifecycle_filter_name }} filter
+      ansible.builtin.set_fact:
+        suma_content_lifecycle_filter_id: "{{ item.id }}"
+      loop: "{{ _suma_content_lifecycle_filters.json.result }}"
+      when: item.name == suma_content_lifecycle_filter_name
+
+    - name: Retrieve filters from SUSE Manager content lifecycle project
+      ansible.builtin.uri:
+        url: "{{ suma_endpoint }}/contentmanagement/listProjectFilters?projectLabel={{ suma_content_lifecycle_projet_name }}"
+        validate_certs: "{{ suma_verify }}"
+        method: GET
+        headers:
+          Accept: application/json
+          Cookie: "{{ suma_cookie }}"
+        status_code: 200
+      register: _suma_content_lifecycle_project_filters
+
+    - name: Attach filter to SUSE Manager content lifecycle project
+      ansible.builtin.uri:
+        url: "{{ suma_endpoint }}/contentmanagement/attachFilter"
+        validate_certs: "{{ suma_verify }}"
+        method: POST
+        headers:
+          Content-Type: application/json
+          Cookie: "{{ suma_cookie }}"
+        body: |
+          {
+            "projectLabel": "{{ suma_content_lifecycle_projet_name }}",
+            "filterId": {{ suma_content_lifecycle_filter_id }}
+          }
+        body_format: json
+        status_code: 200
+      loop: "{{ _suma_content_lifecycle_project_filters.json.result }}"
+      when: not suma_content_lifecycle_filter_name in item.filter.values()
+
+    - name: Retrieve environments SUSE Manager content lifecycle project
+      ansible.builtin.uri:
+        url: "{{ suma_endpoint }}/contentmanagement/listProjectEnvironments?projectLabel={{ suma_content_lifecycle_projet_name }}"
+        validate_certs: "{{ suma_verify }}"
+        method: GET
+        headers:
+          Accept: application/json
+          Cookie: "{{ suma_cookie }}"
+        status_code: 200
+      register: _suma_content_lifecycle_project_environments
+
+    - name: Create SUSE Manager content lifecycle project's environments
+      ansible.builtin.uri:
+        url: "{{ suma_endpoint }}/contentmanagement/createEnvironment"
+        validate_certs: "{{ suma_verify }}"
+        method: POST
+        headers:
+          Content-Type: application/json
+          Cookie: "{{ suma_cookie }}"
+        body: |
+          {
+            "projectLabel": "{{ suma_content_lifecycle_projet_name }}",
+            "name": "{{ item.env }}",
+            "envLabel": "{{ item.env }}",
+            "description": "{{ item.description }}",
+            "predecessorLabel": "{{ item.predecessor }}"
+          }
+        body_format: json
+        status_code: 200
+      loop: "{{ suma_content_lifecycle_projet_envionments }}"
+      when: _suma_content_lifecycle_project_environments.json.result | selectattr("name", "equalto", item.env) | list | count == 0
+
+    - name: Build SUSE Manager content lifecycle project
+      ansible.builtin.uri:
+        url: "{{ suma_endpoint }}/contentmanagement/buildProject"
+        validate_certs: "{{ suma_verify }}"
+        method: POST
+        headers:
+          Content-Type: application/json
+          Cookie: "{{ suma_cookie }}"
+        body: |
+          {
+            "projectLabel": "{{ suma_content_lifecycle_projet_name }}",
+            "message": "{{ suma_content_lifecycle_build_description }}"
+          }
+        body_format: json
+        status_code: 200
+
+    - name: Promote SUSE Manager content lifecycle build from staging to production
+      ansible.builtin.uri:
+        url: "{{ suma_endpoint }}/contentmanagement/promoteProject"
+        validate_certs: "{{ suma_verify }}"
+        method: POST
+        headers:
+          Content-Type: application/json
+          Cookie: "{{ suma_cookie }}"
+        body: |
+          {
+            "projectLabel": "{{ suma_content_lifecycle_projet_name }}",
+            "envLabel": "staging"
+          }
+        body_format: json
+        status_code: 200
+      register: _suma_content_lifecycle_promote
+      failed_when: not _suma_content_lifecycle_promote.json.success | bool
+      when: suma_content_lifecycle_promote_production | bool
+      tags:
+        - promote
