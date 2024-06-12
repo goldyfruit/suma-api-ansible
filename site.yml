@@ -14,15 +14,30 @@
     suma_content_lifecycle_projet_description: |
       SUSE Linux Enterprise Server 15 SP5 patches for the first half of 2024
     suma_content_lifecycle_projet_sources:
-      - sle-product-sles15-sp5-pool-x86_64
-      - sle-product-sles15-sp5-updates-x86_64
+      - label: sle-product-sles15-sp5-pool-x86_64
+      - label: sle-product-sles15-sp5-updates-x86_64
     suma_content_lifecycle_filter_name: first-half-2024
     suma_content_lifecycle_build_description: |
       Build triggered by ServiceNow Change Request 549812
     suma_content_lifecycle_projet_envionments:
-      - {"env": "staging", "description": "First lot of servers to get patched. Non-Prod", "predecessor": ""}
-      - {"env": "production", "description": "Second lot of servers to get patched. Prod", "predecessor": "staging"}
+      - env: staging
+        description: First lot of servers to get patched. Non-Prod
+        predecessor: ""
+      - env: production
+        description: Second lot of servers to get patched. Prod
+        predecessor: staging
     suma_content_lifecycle_promote_production: false
+    suma_activation_keys:
+      - description: "{{ suma_content_lifecycle_projet_name }}-staging"
+        channel: "{{ suma_content_lifecycle_projet_name }}-staging-sle-product-sles15-sp5-pool-x86_64"
+        child_channels:
+          - "{{ suma_content_lifecycle_projet_name }}-staging-sle-product-sles15-sp5-updates-x86_64"
+        environment: staging
+      - description: "{{ suma_content_lifecycle_projet_name }}-production"
+        channel: "{{ suma_content_lifecycle_projet_name }}-production-sle-product-sles15-sp5-pool-x86_64"
+        child_channels:
+          - "{{ suma_content_lifecycle_projet_name }}-production-sle-product-sles15-sp5-updates-x86_64"
+        environment: production
 
   handlers:
     - name: Retrieve SUSE Manager content lifecycle filters - Handler
@@ -35,6 +50,7 @@
           Cookie: "{{ suma_cookie }}"
         status_code: 200
       register: _suma_content_lifecycle_filters
+      failed_when: not _suma_content_lifecycle_filters.json.success | bool
 
   pre_tasks:
     - name: Retrieve SUSE Manager credentials
@@ -52,6 +68,7 @@
         body_format: json
         status_code: 200
       register: _suma_credentials
+      failed_when: not _suma_credentials.json.success | bool
       tags:
         - always
 
@@ -75,6 +92,7 @@
           Cookie: "{{ suma_cookie }}"
         status_code: 200
       register: _suma_content_lifecycle_projects
+      failed_when: not _suma_content_lifecycle_projects.json.success | bool
 
     - name: Create SUSE Manager content lifecycle project
       ansible.builtin.uri:
@@ -92,6 +110,8 @@
           }
         body_format: json
         status_code: 200
+      register: _suma_content_lifecycle_project_create
+      failed_when: not _suma_content_lifecycle_project_create.json.success | bool
       when: _suma_content_lifecycle_projects.json.result | selectattr("label", "equalto", suma_content_lifecycle_projet_name) | list | count == 0
 
     - name: Retrieve sources from SUSE Manager content lifecycle project
@@ -104,6 +124,7 @@
           Cookie: "{{ suma_cookie }}"
         status_code: 200
       register: _suma_content_lifecycle_project_sources
+      failed_when: not _suma_content_lifecycle_project_sources.json.success | bool
 
     - name: Attach sources to SUSE Manager content lifecycle project
       ansible.builtin.uri:
@@ -117,10 +138,12 @@
           {
             "projectLabel": "{{ suma_content_lifecycle_projet_name }}",
             "sourceType": "software",
-            "sourceLabel": "{{ item }}"
+            "sourceLabel": "{{ item.label }}"
           }
         body_format: json
         status_code: 200
+      register: _suma_content_lifecycle_attach_sources
+      failed_when: not _suma_content_lifecycle_attach_sources.json.success | bool
       loop: "{{ suma_content_lifecycle_projet_sources }}"
       when: _suma_content_lifecycle_project_sources.json.result | selectattr("channelLabel", "equalto", item) | list | count == 0
 
@@ -158,6 +181,7 @@
         status_code: 200
       register: _suma_content_lifecycle_filter_create
       changed_when: _suma_content_lifecycle_filter_create.status == 200
+      failed_when: not _suma_content_lifecycle_filter_create.json.success | bool
       notify: Retrieve SUSE Manager content lifecycle filters - Handler
       when: _suma_content_lifecycle_filters.json.result | selectattr("name", "equalto", suma_content_lifecycle_filter_name) | list | count == 0
 
@@ -180,6 +204,7 @@
           Cookie: "{{ suma_cookie }}"
         status_code: 200
       register: _suma_content_lifecycle_project_filters
+      failed_when: not _suma_content_lifecycle_project_filters.json.success | bool
 
     - name: Attach filter to SUSE Manager content lifecycle project
       ansible.builtin.uri:
@@ -196,8 +221,8 @@
           }
         body_format: json
         status_code: 200
-      loop: "{{ _suma_content_lifecycle_project_filters.json.result }}"
-      when: not suma_content_lifecycle_filter_name in item.filter.values()
+      register: _suma_content_lifecycle_attach_filters
+      failed_when: not _suma_content_lifecycle_attach_filters.json.success | bool
 
     - name: Retrieve environments SUSE Manager content lifecycle project
       ansible.builtin.uri:
@@ -209,6 +234,7 @@
           Cookie: "{{ suma_cookie }}"
         status_code: 200
       register: _suma_content_lifecycle_project_environments
+      failed_when: not _suma_content_lifecycle_project_environments.json.success | bool
 
     - name: Create SUSE Manager content lifecycle project's environments
       ansible.builtin.uri:
@@ -228,6 +254,8 @@
           }
         body_format: json
         status_code: 200
+      register: _suma_content_lifecycle_project_environments_create
+      failed_when: not _suma_content_lifecycle_project_environments_create.json.success | bool
       loop: "{{ suma_content_lifecycle_projet_envionments }}"
       when: _suma_content_lifecycle_project_environments.json.result | selectattr("name", "equalto", item.env) | list | count == 0
 
@@ -246,6 +274,66 @@
           }
         body_format: json
         status_code: 200
+      register: _suma_content_lifecycle_project_build
+      failed_when: not _suma_content_lifecycle_project_build.json.success | bool
+
+    - name: Retrieve SUSE Manager activation keys
+      ansible.builtin.uri:
+        url: "{{ suma_endpoint }}/activationkey/listActivationKeys"
+        validate_certs: "{{ suma_verify }}"
+        method: GET
+        headers:
+          Accept: application/json
+          Cookie: "{{ suma_cookie }}"
+        status_code: 200
+      register: _suma_activation_keys
+      failed_when: not _suma_activation_keys.json.success | bool
+      tags: always
+
+    - name: Create staging SUSE Manager activation key
+      ansible.builtin.uri:
+        url: "{{ suma_endpoint }}/activationkey/create"
+        validate_certs: "{{ suma_verify }}"
+        method: POST
+        headers:
+          Content-Type: application/json
+          Cookie: "{{ suma_cookie }}"
+        body: |
+          {
+            "key": "{{ item.description }}",
+            "description": "{{ item.description }}",
+            "baseChannelLabel": "{{ item.channel }}",
+            "universalDefault": false,
+            "entitlements": []
+          }
+        body_format: json
+        status_code: 200
+      register: _suma_activation_keys_create_staging
+      failed_when: not _suma_activation_keys_create_staging.json.success | bool
+      loop: "{{ suma_activation_keys }}"
+      when:
+        - item.environment == "staging"
+        - _suma_activation_keys.json.result | selectattr("key", "equalto", "1-" + item.description) | list | count == 0
+
+    - name: Add child channels to the staging SUSE Manager activation key
+      ansible.builtin.uri:
+        url: "{{ suma_endpoint }}/activationkey/addChildChannels"
+        validate_certs: "{{ suma_verify }}"
+        method: POST
+        headers:
+          Content-Type: application/json
+          Cookie: "{{ suma_cookie }}"
+        body: |
+          {
+            "key": "1-{{ item.0.description }}",
+            "childChannelLabels": "{{ item.1 }}"
+          }
+        body_format: json
+        status_code: 200
+      register: _suma_activation_keys_add_child_staging
+      failed_when: not _suma_activation_keys_add_child_staging.json.success | bool
+      loop: "{{ suma_activation_keys | subelements('child_channels') }}"
+      when: item.0.environment == "staging"
 
     - name: Promote SUSE Manager content lifecycle build from staging to production
       ansible.builtin.uri:
@@ -265,5 +353,54 @@
       register: _suma_content_lifecycle_promote
       failed_when: not _suma_content_lifecycle_promote.json.success | bool
       when: suma_content_lifecycle_promote_production | bool
+      tags:
+        - promote
+
+    - name: Create production SUSE Manager activation key
+      ansible.builtin.uri:
+        url: "{{ suma_endpoint }}/activationkey/create"
+        validate_certs: "{{ suma_verify }}"
+        method: POST
+        headers:
+          Content-Type: application/json
+          Cookie: "{{ suma_cookie }}"
+        body: |
+          {
+            "key": "{{ item.description }}",
+            "description": "{{ item.description }}",
+            "baseChannelLabel": "{{ item.channel }}",
+            "universalDefault": false,
+            "entitlements": []
+          }
+        body_format: json
+        status_code: 200
+      register: _suma_activation_keys_create_production
+      failed_when: not _suma_activation_keys_create_production.json.success | bool
+      loop: "{{ suma_activation_keys }}"
+      when:
+        - item.environment == "production"
+        - _suma_activation_keys.json.result | selectattr("key", "equalto", "1-" + item.description) | list | count == 0
+      tags:
+        - promote
+
+    - name: Add child channels to the production SUSE Manager activation key
+      ansible.builtin.uri:
+        url: "{{ suma_endpoint }}/activationkey/addChildChannels"
+        validate_certs: "{{ suma_verify }}"
+        method: POST
+        headers:
+          Content-Type: application/json
+          Cookie: "{{ suma_cookie }}"
+        body: |
+          {
+            "key": "1-{{ item.0.description }}",
+            "childChannelLabels": "{{ item.1 }}"
+          }
+        body_format: json
+        status_code: 200
+      register: _suma_activation_keys_add_child_production
+      failed_when: not _suma_activation_keys_add_child_production.json.success | bool
+      loop: "{{ suma_activation_keys | subelements('child_channels') }}"
+      when: item.0.environment == "production"
       tags:
         - promote
