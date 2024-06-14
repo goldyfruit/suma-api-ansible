@@ -9,6 +9,7 @@
     suma_endpoint: "{{ suma_host }}/rhn/manager/api"
     suma_verify: false
     suma_login: suma
+    # Should be in vault but we keep it like this for demo purpose
     suma_password: suma2024
     suma_content_lifecycle_projet_name: susecon24-2024-h1-sles15
     suma_content_lifecycle_projet_description: |
@@ -16,7 +17,15 @@
     suma_content_lifecycle_projet_sources:
       - label: sle-product-sles15-sp5-pool-x86_64
       - label: sle-product-sles15-sp5-updates-x86_64
-    suma_content_lifecycle_filter_name: first-half-2024
+      - label: sle-manager-tools15-pool-x86_64-sp5
+      - label: sle-manager-tools15-updates-x86_64-sp5
+      - label: sle-module-basesystem15-sp5-pool-x86_64
+      - label: sle-module-basesystem15-sp5-updates-x86_64
+      - label: sle-module-python3-15-sp5-pool-x86_64
+      - label: sle-module-python3-15-sp5-updates-x86_64
+      - label: sle-module-server-applications15-sp5-pool-x86_64
+      - label: sle-module-server-applications15-sp5-updates-x86_64
+    suma_content_lifecycle_filter_name: first-month-2024
     suma_content_lifecycle_build_description: |
       Build triggered by ServiceNow Change Request 549812
     suma_content_lifecycle_projet_envionments:
@@ -32,12 +41,59 @@
         channel: "{{ suma_content_lifecycle_projet_name }}-staging-sle-product-sles15-sp5-pool-x86_64"
         child_channels:
           - "{{ suma_content_lifecycle_projet_name }}-staging-sle-product-sles15-sp5-updates-x86_64"
+          - "{{ suma_content_lifecycle_projet_name }}-staging-sle-manager-tools15-pool-x86_64-sp5"
+          - "{{ suma_content_lifecycle_projet_name }}-staging-sle-manager-tools15-updates-x86_64-sp5"
+          - "{{ suma_content_lifecycle_projet_name }}-staging-sle-module-basesystem15-sp5-pool-x86_64"
+          - "{{ suma_content_lifecycle_projet_name }}-staging-sle-module-basesystem15-sp5-updates-x86_64"
+          - "{{ suma_content_lifecycle_projet_name }}-staging-sle-module-python3-15-sp5-pool-x86_64"
+          - "{{ suma_content_lifecycle_projet_name }}-staging-sle-module-python3-15-sp5-updates-x86_64"
+          - "{{ suma_content_lifecycle_projet_name }}-staging-sle-module-server-applications15-sp5-pool-x86_64"
+          - "{{ suma_content_lifecycle_projet_name }}-staging-sle-module-server-applications15-sp5-updates-x86_64"
         environment: staging
       - description: "{{ suma_content_lifecycle_projet_name }}-production"
         channel: "{{ suma_content_lifecycle_projet_name }}-production-sle-product-sles15-sp5-pool-x86_64"
         child_channels:
           - "{{ suma_content_lifecycle_projet_name }}-production-sle-product-sles15-sp5-updates-x86_64"
+          - "{{ suma_content_lifecycle_projet_name }}-production-sle-manager-tools15-pool-x86_64-sp5"
+          - "{{ suma_content_lifecycle_projet_name }}-production-sle-manager-tools15-updates-x86_64-sp5"
+          - "{{ suma_content_lifecycle_projet_name }}-production-sle-module-basesystem15-sp5-pool-x86_64"
+          - "{{ suma_content_lifecycle_projet_name }}-production-sle-module-basesystem15-sp5-updates-x86_64"
+          - "{{ suma_content_lifecycle_projet_name }}-production-sle-module-python3-15-sp5-pool-x86_64"
+          - "{{ suma_content_lifecycle_projet_name }}-production-sle-module-python3-15-sp5-updates-x86_64"
+          - "{{ suma_content_lifecycle_projet_name }}-production-sle-module-server-applications15-sp5-pool-x86_64"
+          - "{{ suma_content_lifecycle_projet_name }}-production-sle-module-server-applications15-sp5-updates-x86_64"
         environment: production
+    suma_servers_to_patch:
+      - host: susecon2024-sles15sp5-staging.home.lan
+        environment: staging
+        activation_key: "1-{{ suma_content_lifecycle_projet_name }}-staging"
+        # lookup() should be used but we keep it like this for demo purpose
+        ssh_key: |
+          -----BEGIN OPENSSH PRIVATE KEY-----
+          b3BlbnNzaC1rZXktdjEAAAAACmFlczI1Ni1jdHIAAAAGYmNyeXB0AAAAGAAAABB8+o4Sb/
+          kOMIShk5j+jdRhAAAAGAAAAAEAAAAzAAAAC3NzaC1lZDI1NTE5AAAAIBblzDYime7qRc51
+          sVGvM5UtokFiiOq9rJY/3puuZth9AAAAoNRdgn4GFh3xfOXQpjcW+GKoi8vIHEZfB+Vq2X
+          Xom/wm56Vi/vDzYZLODc8QGWrYrius9xwq+5HZLew/2HqS7fm3VXw9LCCoRA/hSHO5gpcV
+          LeDdDUuvHeybAGJo9XFnXTwXWq4ZvLJRy2TdP0DtxqXYYfCY4jI0psfRRjSh/uus7vfnaS
+          Zwwu1h7LzS2lPFPq0/9Bv/RfiqVqpWHKmdcm8=
+          -----END OPENSSH PRIVATE KEY-----
+        # Should be in vault but we keep it like this for demo purpose
+        ssh_key_pass: susecon2024
+      - host: susecon2024-sles15sp5-production.home.lan
+        environment: production
+        activation_key: "1-{{ suma_content_lifecycle_projet_name }}-production"
+        # lookup() should be used but we keep it like this for demo purpose
+        ssh_key: |
+          -----BEGIN OPENSSH PRIVATE KEY-----
+          b3BlbnNzaC1rZXktdjEAAAAACmFlczI1Ni1jdHIAAAAGYmNyeXB0AAAAGAAAABB8+o4Sb/
+          kOMIShk5j+jdRhAAAAGAAAAAEAAAAzAAAAC3NzaC1lZDI1NTE5AAAAIBblzDYime7qRc51
+          sVGvM5UtokFiiOq9rJY/3puuZth9AAAAoNRdgn4GFh3xfOXQpjcW+GKoi8vIHEZfB+Vq2X
+          Xom/wm56Vi/vDzYZLODc8QGWrYrius9xwq+5HZLew/2HqS7fm3VXw9LCCoRA/hSHO5gpcV
+          LeDdDUuvHeybAGJo9XFnXTwXWq4ZvLJRy2TdP0DtxqXYYfCY4jI0psfRRjSh/uus7vfnaS
+          Zwwu1h7LzS2lPFPq0/9Bv/RfiqVqpWHKmdcm8=
+          -----END OPENSSH PRIVATE KEY-----
+        # Should be in vault but we keep it like this for demo purpose
+        ssh_key_pass: susecon2024
 
   handlers:
     - name: Retrieve SUSE Manager content lifecycle filters - Handler
@@ -174,7 +230,7 @@
             "criteria": {
               "field": "issue_date",
               "matcher": "greatereq",
-              "value": "2024-06-01T04:00:00.000Z"
+              "value": "2024-01-01T00:00:00.000Z"
             }
           }
         body_format: json
@@ -330,10 +386,50 @@
           }
         body_format: json
         status_code: 200
-      register: _suma_activation_keys_add_child_staging
-      failed_when: not _suma_activation_keys_add_child_staging.json.success | bool
+      register: _suma_activation_key_add_child_staging
+      failed_when: not _suma_activation_key_add_child_staging.json.success | bool
       loop: "{{ suma_activation_keys | subelements('child_channels') }}"
       when: item.0.environment == "staging"
+
+    - name: Retrieve SUSE Manager registered systems
+      ansible.builtin.uri:
+        url: "{{ suma_endpoint }}/system/listSystems"
+        validate_certs: "{{ suma_verify }}"
+        method: GET
+        headers:
+          Accept: application/json
+          Cookie: "{{ suma_cookie }}"
+        status_code: 200
+      register: _suma_registered_systems
+      failed_when: not _suma_registered_systems.json.success | bool
+      tags: always
+
+    - name: Register systems into SUSE Manager
+      ansible.builtin.uri:
+        url: "{{ suma_endpoint }}/system/bootstrapWithPrivateSshKey"
+        validate_certs: "{{ suma_verify }}"
+        method: POST
+        headers:
+          Content-Type: application/json
+          Cookie: "{{ suma_cookie }}"
+        body: |
+          {
+            "host": "{{ item.host }}",
+            "sshPort": 22,
+            "sshUser": "root",
+            "sshPrivKey": "{{ item.ssh_key }}",
+            "sshPrivKeyPass": "{{ item.ssh_key_pass }}",
+            "activationKey": "{{ item.activation_key }}",
+            "saltSSH": false
+          }
+        body_format: json
+        status_code: 200
+      async: 300
+      poll: 0
+      loop: "{{ suma_servers_to_patch }}"
+      when:
+        - item.environment == "staging"
+        - _suma_registered_systems.json.result | selectattr("name", "equalto", item.host) | list | count == 0
 
     - name: Promote SUSE Manager content lifecycle build from staging to production
       ansible.builtin.uri:
@@ -374,8 +470,8 @@
           }
         body_format: json
         status_code: 200
-      register: _suma_activation_keys_create_production
-      failed_when: not _suma_activation_keys_create_production.json.success | bool
+      register: _suma_activation_key_create_production
+      failed_when: not _suma_activation_key_create_production.json.success | bool
       loop: "{{ suma_activation_keys }}"
       when:
         - item.environment == "production"
@@ -398,9 +494,38 @@
           }
         body_format: json
         status_code: 200
-      register: _suma_activation_keys_add_child_production
-      failed_when: not _suma_activation_keys_add_child_production.json.success | bool
+      register: _suma_activation_key_add_child_production
+      failed_when: not _suma_activation_key_add_child_production.json.success | bool
       loop: "{{ suma_activation_keys | subelements('child_channels') }}"
       when: item.0.environment == "production"
+      tags:
+        - promote
+
+    - name: Register systems into SUSE Manager
+      ansible.builtin.uri:
+        url: "{{ suma_endpoint }}/system/bootstrapWithPrivateSshKey"
+        validate_certs: "{{ suma_verify }}"
+        method: POST
+        headers:
+          Content-Type: application/json
+          Cookie: "{{ suma_cookie }}"
+        body: |
+          {
+            "host": "{{ item.host }}",
+            "sshPort": 22,
+            "sshUser": "root",
+            "sshPrivKey": "{{ item.ssh_key }}",
+            "sshPrivKeyPass": "{{ item.ssh_key_pass }}",
+            "activationKey": "{{ item.activation_key }}",
+            "saltSSH": false
+          }
+        body_format: json
+        status_code: 200
+      async: 300
+      poll: 0
+      loop: "{{ suma_servers_to_patch }}"
+      when:
+        - item.environment == "production"
+        - _suma_registered_systems.json.result | selectattr("name", "equalto", item.host) | list | count == 0
       tags:
         - promote
