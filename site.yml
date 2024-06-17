@@ -230,7 +230,7 @@
             "criteria": {
               "field": "issue_date",
               "matcher": "greatereq",
-              "value": "2024-01-01T00:00:00.000Z"
+              "value": "2024-02-01T00:00:00.000Z"
             }
           }
         body_format: json
