@@ -491,6 +491,7 @@
       when:
         - item.environment == "production"
         - _suma_activation_keys.json.result | selectattr("key", "equalto", "1-" + item.description) | list | count == 0
+        - _suma_content_lifecycle_promote.status is defined and _suma_content_lifecycle_promote.status == 200
       tags:
         - promote
 
