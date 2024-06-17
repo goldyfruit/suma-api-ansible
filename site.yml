@@ -404,6 +404,21 @@
       failed_when: not _suma_registered_systems.json.success | bool
       tags: always
 
+    - name: Retrieve staging environment status from SUSE Manager content lifecycle project
+      ansible.builtin.uri:
+        url: "{{ suma_endpoint }}/contentmanagement/lookupEnvironment?projectLabel={{ suma_content_lifecycle_projet_name }}&envLabel=staging"
+        validate_certs: "{{ suma_verify }}"
+        method: GET
+        headers:
+          Accept: application/json
+          Cookie: "{{ suma_cookie }}"
+        status_code: 200
+      register: _suma_content_lifecycle_project_environment_status_staging
+      failed_when: not _suma_content_lifecycle_project_environment_status_staging.json.success | bool
+      until: _suma_content_lifecycle_project_environment_status_staging.json.result.status == "built"
+      retries: 30
+      delay: 3
+
     - name: Register systems into SUSE Manager
       ansible.builtin.uri:
         url: "{{ suma_endpoint }}/system/bootstrapWithPrivateSshKey"
@@ -498,6 +513,23 @@
       failed_when: not _suma_activation_key_add_child_production.json.success | bool
       loop: "{{ suma_activation_keys | subelements('child_channels') }}"
       when: item.0.environment == "production"
+      tags:
+        - promote
+
+    - name: Retrieve production environment status from SUSE Manager content lifecycle project
+      ansible.builtin.uri:
+        url: "{{ suma_endpoint }}/contentmanagement/lookupEnvironment?projectLabel={{ suma_content_lifecycle_projet_name }}&envLabel=production"
+        validate_certs: "{{ suma_verify }}"
+        method: GET
+        headers:
+          Accept: application/json
+          Cookie: "{{ suma_cookie }}"
+        status_code: 200
+      register: _suma_content_lifecycle_project_environment_status_production
+      failed_when: not _suma_content_lifecycle_project_environment_status_production.json.success | bool
+      until: _suma_content_lifecycle_project_environment_status_production.json.result.status == "built"
+      retries: 30
+      delay: 3
       tags:
         - promote
 
